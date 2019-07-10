@@ -13,6 +13,9 @@ where ```TARGET``` can be an IP address or a hostname
 
 
 ## Installation
+Binary releases can be found here: https://github.com/w33zl3p00tch/tcpscan/releases
+
+To build it from source, you can ```go get``` it.
 
 ```go get github.com/w33zl3p00tch/tcpscan```
 
