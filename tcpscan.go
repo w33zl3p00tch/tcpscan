@@ -43,7 +43,7 @@ func main() {
 	timeout := time.Second * 5
 	ports := 65536
 
-	var slice []int
+	var results []int
 	var wg0 sync.WaitGroup
 	var wg1 sync.WaitGroup
 	queue := make(chan int)
@@ -53,7 +53,7 @@ func main() {
 	for port := 0; port < ports; port++ {
 		go func(p int) {
 			defer wg0.Done()
-			checkPort := connTcp(host, uint16(p), timeout)
+			checkPort := connTCP(host, uint16(p), timeout)
 			if checkPort {
 				queue <- p
 			}
@@ -64,25 +64,27 @@ func main() {
 	go func() {
 		defer wg1.Done()
 		for t := range queue {
-			slice = append(slice, t)
+			results = append(results, t)
 		}
 	}()
 
 	wg0.Wait()
 	close(queue)
 	wg1.Wait()
-	sort.Ints(slice)
+	sort.Ints(results)
 
-	for i := range slice {
-		fmt.Println(slice[i])
+	for i := range results {
+		fmt.Println(results[i])
 	}
 }
 
-func connTcp(host string, port uint16, t time.Duration) bool {
+func connTCP(host string, port uint16, t time.Duration) bool {
+	p := fmt.Sprintf("%d", port)
 	for i := 0; i < 3; i++ {
-		if connection, err := net.DialTimeout("tcp",
-			host+":"+fmt.Sprintf("%d", port), t); err == nil {
-			connection.Close()
+		if connection, err := net.DialTimeout("tcp", host+":"+p, t); err == nil {
+			if err := connection.Close(); err != nil {
+				panic(err)
+			}
 			return true // we have a response
 		}
 	}
