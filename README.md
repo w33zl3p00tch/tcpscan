@@ -1,4 +1,5 @@
 # tcpscan
+[![Go Report Card](https://goreportcard.com/badge/github.com/w33zl3p00tch/tcpscan)](https://goreportcard.com/report/github.com/w33zl3p00tch/tcpscan)
 
 This is a simple TCP port scanner. It checks all TCP ports and prints the port numbers that it could connect to.
 
