@@ -13,6 +13,7 @@ prefix="$progName$version"
 declare -a arch=(
 	"Linux_amd64 linux amd64"
 	"Linux_x86 linux 386"
+	"Windows_x86 windows 386"
 	"Windows_amd64 windows amd64"
 	"macOS darwin amd64"
 	"FreeBSD_amd64 freebsd amd64"
@@ -35,7 +36,7 @@ do
 
 		# Uncomment the following if/else clause if you don't want to
 		# use UPX.
-		if [ -e $progName.exe]; then
+		if [ -e $progName.exe ]; then
 			upx $progName.exe
 		else
 			upx $progName
