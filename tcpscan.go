@@ -28,6 +28,11 @@ where TARGET can be an IP address or a hostname
 
 "tcpscan -h" prints this help text.
 
+
+Warning: Open ports are determined by explicitly connecting to
+them. If you need anything more stealthy, this is not the right
+tool for you.
+
 tcpscan is licensed under a BSD style license as stated in the
 LICENSE file that should have come with this software.
 Please don't use this tool for questionable or illegal purposes.
@@ -40,7 +45,7 @@ func main() {
 	}
 
 	host := os.Args[1]
-	timeout := time.Second * 5
+	timeout := time.Second * 15
 	ports := 65536
 
 	var results []int
@@ -80,13 +85,14 @@ func main() {
 
 func connTCP(host string, port uint16, t time.Duration) bool {
 	p := fmt.Sprintf("%d", port)
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 50; i++ {
 		if connection, err := net.DialTimeout("tcp", host+":"+p, t); err == nil {
 			if err := connection.Close(); err != nil {
-				panic(err)
+				os.Stderr.WriteString("Error closing a connection on port " + p)
 			}
 			return true // we have a response
 		}
+		time.Sleep(time.Second / 4)
 	}
 	return false
 }
