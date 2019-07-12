@@ -104,8 +104,9 @@ func connTCP(host string, port uint16, t time.Duration) bool {
 				continue
 			} else if strings.Contains(err.Error(), "can't assign requested address") {
 				// maybe IPv6 is disabled on this host
-				time.Sleep(retry)
-				continue
+				return false
+			} else if strings.Contains(err.Error(), "requested addres is not valid in this context") {
+				return false
 			} else if strings.Contains(err.Error(), "i/o timeout") {
 				time.Sleep(retry)
 				continue
