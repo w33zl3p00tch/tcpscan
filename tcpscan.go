@@ -85,7 +85,6 @@ func main() {
 }
 
 // connTCP tries to connect to a port until the connection is refused or accepted.
-// In case an error occurs that is not yet accounted for, the program is aborted.
 func connTCP(host string, port uint16, t time.Duration) bool {
 	retry := time.Second / 2
 	tgt := fmt.Sprintf("%s:%d", host, port)
@@ -105,7 +104,7 @@ func connTCP(host string, port uint16, t time.Duration) bool {
 			} else if strings.Contains(err.Error(), "can't assign requested address") {
 				// maybe IPv6 is disabled on this host
 				return false
-			} else if strings.Contains(err.Error(), "requested addres is not valid in this context") {
+			} else if strings.Contains(err.Error(), "requested address is not valid") {
 				return false
 			} else if strings.Contains(err.Error(), "i/o timeout") {
 				time.Sleep(retry)
@@ -115,9 +114,10 @@ func connTCP(host string, port uint16, t time.Duration) bool {
 				return false
 			} else {
 				// some error we haven't yet encountered (firewall?)
-				fmt.Println(err)
-				fmt.Println("Maybe this is a firewall/QOS issue. Aborting.")
-				os.Exit(1)
+				//fmt.Println(err)
+				//fmt.Println("Maybe this is a firewall/QOS issue. Aborting.")
+				//os.Exit(1)
+				return false
 			}
 		}
 
