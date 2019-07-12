@@ -13,6 +13,7 @@ import (
 	"net"
 	"os"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -45,7 +46,7 @@ func main() {
 	}
 
 	host := os.Args[1]
-	timeout := time.Second * 15
+	timeout := time.Second * 5
 	ports := 65536
 
 	var results []int
@@ -83,16 +84,44 @@ func main() {
 	}
 }
 
+// connTCP tries to connect to a port until the connection is refused or accepted.
+// In case an error occurs that is not yet accounted for, the program is aborted.
 func connTCP(host string, port uint16, t time.Duration) bool {
-	p := fmt.Sprintf("%d", port)
-	for i := 0; i < 50; i++ {
-		if connection, err := net.DialTimeout("tcp", host+":"+p, t); err == nil {
-			if err := connection.Close(); err != nil {
-				os.Stderr.WriteString("Error closing a connection on port " + p)
+	retry := time.Second / 2
+	tgt := fmt.Sprintf("%s:%d", host, port)
+
+	for {
+		conn, err := net.DialTimeout("tcp", tgt, t)
+		if err != nil {
+			if strings.Contains(err.Error(), "too many open files") {
+				// try again later. Could be avoided by reading the
+				// machine's ulimit for file handles and queueing the
+				// goroutines accordingly.
+				time.Sleep(retry)
+				continue
+			} else if strings.Contains(err.Error(), "device or resource busy") {
+				time.Sleep(retry)
+				continue
+			} else if strings.Contains(err.Error(), "i/o timeout") {
+				time.Sleep(retry)
+				continue
+			} else if strings.Contains(err.Error(), "connection refused") {
+				// nope. That port is closed.
+				return false
+			} else {
+				// some error we haven't yet encountered (firewall?)
+				fmt.Println(err)
+				fmt.Println("Maybe this is a firewall/QOS issue. Aborting.")
+				os.Exit(1)
 			}
-			return true // we have a response
 		}
-		time.Sleep(time.Second / 4)
+
+		if err := conn.Close(); err != nil {
+			p := fmt.Sprintf("%d", port)
+			warn := "Warning: error on closing connection to port " + p
+			os.Stderr.WriteString(warn)
+		}
+
+		return true // Yes, this is an open port.
 	}
-	return false
 }
