@@ -46,7 +46,7 @@ func main() {
 	}
 
 	host := os.Args[1]
-	timeout := time.Second * 5
+	timeout := time.Second / 2
 	ports := 65536
 
 	var results []int
@@ -87,36 +87,28 @@ func main() {
 // connTCP tries to connect to a port until the connection is refused or accepted.
 func connTCP(host string, port uint16, t time.Duration) bool {
 	retry := time.Second / 2
+	retryCount := 3
+	retryCounter := 0
 	tgt := fmt.Sprintf("%s:%d", host, port)
 
 	for {
 		conn, err := net.DialTimeout("tcp", tgt, t)
 		if err != nil {
-			if strings.Contains(err.Error(), "too many open files") {
-				// try again later. Could be avoided by reading the
-				// machine's ulimit for file handles and queueing the
-				// goroutines accordingly.
+			switch action := checkConnErr(err); action {
+			case "retry":
 				time.Sleep(retry)
 				continue
-			} else if strings.Contains(err.Error(), "device or resource busy") {
-				time.Sleep(retry)
-				continue
-			} else if strings.Contains(err.Error(), "can't assign requested address") {
-				// maybe IPv6 is disabled on this host
-				return false
-			} else if strings.Contains(err.Error(), "requested address is not valid") {
-				return false
-			} else if strings.Contains(err.Error(), "i/o timeout") {
-				time.Sleep(retry)
-				continue
-			} else if strings.Contains(err.Error(), "connection refused") {
-				// nope. That port is closed.
-				return false
-			} else {
-				// some error we haven't yet encountered (firewall?)
+			case "refused":
+				if retryCounter < retryCount {
+					retryCounter++
+					time.Sleep(retry)
+					continue
+				} else {
+					// nope. That port is closed.
+					return false
+				}
+			default:
 				//fmt.Println(err)
-				//fmt.Println("Maybe this is a firewall/QOS issue. Aborting.")
-				//os.Exit(1)
 				return false
 			}
 		}
@@ -129,4 +121,30 @@ func connTCP(host string, port uint16, t time.Duration) bool {
 
 		return true // Yes, this is an open port.
 	}
+}
+
+// checkConnErr returns a proposed action according to the error.
+func checkConnErr(err error) string {
+	chk := strings.Contains
+	var action string
+	errMsg := err.Error()
+
+	switch {
+	case chk(errMsg, "connection refused"):
+		action = "refused"
+	case chk(errMsg, "i/o timeout"):
+		action = "retry"
+	case chk(errMsg, "requested address is not valid"):
+		action = "invalid_addr"
+	case chk(errMsg, "can't assign requested address"):
+		action = "addr_unassignable"
+	case chk(errMsg, "device or resource busy"):
+		action = "retry"
+	case chk(errMsg, "too many open files"):
+		action = "retry"
+	default:
+		action = "action_not_handled"
+	}
+
+	return action
 }
