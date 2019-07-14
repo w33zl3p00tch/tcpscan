@@ -9,6 +9,7 @@ that you should have received along with this source code.
 package main
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
@@ -16,6 +17,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/sync/semaphore"
 )
 
 var help = `
@@ -39,44 +42,53 @@ LICENSE file that should have come with this software.
 Please don't use this tool for questionable or illegal purposes.
 `
 
+var (
+	queue chan int // queue for storing found open ports
+)
+
+type portScanner struct {
+	host string
+	lock *semaphore.Weighted
+}
+
 func main() {
 	if len(os.Args) == 1 || os.Args[1] == "-h" {
 		fmt.Println(help)
 		os.Exit(0)
 	}
 
-	host := os.Args[1]
+	hostOrIp := os.Args[1] // TODO: make name resolution once.
 	timeout := time.Second / 2
+	first := 1
 	ports := 65536
 
+	limit := 512 // limit active goroutines to this.
+	// TODO: portable reading of equivalent of `ulimit -n`
+
 	var results []int
-	var wg0 sync.WaitGroup
-	var wg1 sync.WaitGroup
-	queue := make(chan int)
+	var wg sync.WaitGroup
+	var wgQueue sync.WaitGroup
+	queue = make(chan int)
 
-	wg0.Add(ports)
-
-	for port := 0; port < ports; port++ {
-		go func(p int) {
-			defer wg0.Done()
-			checkPort := connTCP(host, uint16(p), timeout)
-			if checkPort {
-				queue <- p
-			}
-		}(port)
-	}
-
-	wg1.Add(1)
+	// read queue in the background
+	wgQueue.Add(1)
 	go func() {
-		defer wg1.Done()
+		defer wgQueue.Done()
 		for t := range queue {
 			results = append(results, t)
 		}
 	}()
 
-	wg0.Wait()
+	// do the scan
+	ps := &portScanner{
+		host: hostOrIp,
+		lock: semaphore.NewWeighted(int64(limit)),
+	}
+	ps.Run(first, ports, timeout, wg)
+
+	wg.Wait()
 	close(queue)
-	wg1.Wait()
+	wgQueue.Wait()
 	sort.Ints(results)
 
 	for i := range results {
@@ -86,8 +98,8 @@ func main() {
 
 // connTCP tries to connect to a port until the connection is refused or accepted.
 func connTCP(host string, port uint16, t time.Duration) bool {
-	retry := time.Second / 2
-	retryCount := 3
+	retry := time.Second / 10
+	retryCount := 1
 	retryCounter := 0
 	tgt := fmt.Sprintf("%s:%d", host, port)
 
@@ -108,7 +120,6 @@ func connTCP(host string, port uint16, t time.Duration) bool {
 					return false
 				}
 			default:
-				//fmt.Println(err)
 				return false
 			}
 		}
@@ -147,4 +158,20 @@ func checkConnErr(err error) string {
 	}
 
 	return action
+}
+
+// Run a port scan.
+func (ps *portScanner) Run(f, l int, timeout time.Duration, wg sync.WaitGroup) {
+	for port := f; port < l; port++ {
+		ps.lock.Acquire(context.TODO(), 1)
+		wg.Add(1)
+		go func(p int) {
+			defer ps.lock.Release(1)
+			defer wg.Done()
+			checkPort := connTCP(ps.host, uint16(p), timeout)
+			if checkPort {
+				queue <- p
+			}
+		}(port)
+	}
 }
