@@ -98,7 +98,7 @@ func main() {
 
 // connTCP tries to connect to a port until the connection is refused or accepted.
 func connTCP(host string, port uint16, t time.Duration) bool {
-	retry := time.Second / 10
+	retry := time.Second / 2
 	retryCount := 1
 	retryCounter := 0
 	tgt := fmt.Sprintf("%s:%d", host, port)
@@ -144,7 +144,7 @@ func checkConnErr(err error) string {
 	case chk(errMsg, "connection refused"):
 		action = "refused"
 	case chk(errMsg, "i/o timeout"):
-		action = "retry"
+		action = "refused"
 	case chk(errMsg, "requested address is not valid"):
 		action = "invalid_addr"
 	case chk(errMsg, "can't assign requested address"):
